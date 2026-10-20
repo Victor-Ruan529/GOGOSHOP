@@ -1,100 +1,110 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE mapper
-        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
-        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.example.mapper.GoodsMapper">
 
-    <sql id="Base_Column_List">
-        id,name,description,img,price,count,unit,type_id,business_id
+    <sql id="Select_With_Names">
+        select goods.*, type.name as type_name, business.name as business_name
+        from goods
+        left join type on goods.type_id = type.id
+        left join business on goods.business_id = business.id
     </sql>
 
     <select id="selectAll" resultType="com.example.entity.Goods">
-        select goods.*, type.name as typeName, business.name as businessName
-        from goods
-        left join type on goods.type_id = type.id
-        left join business on goods.business_id = business.id
+        <include refid="Select_With_Names"/>
         <where>
-            <if test="id != null"> and id= #{id}</if>
-            <if test="name != null"> and goods.name like concat('%', #{name}, '%')</if>
-            <if test="description != null"> and description= #{description}</if>
-            <if test="img != null"> and img= #{img}</if>
-            <if test="price != null"> and price= #{price}</if>
-            <if test="count != null"> and count= #{count}</if>
-            <if test="unit != null"> and unit= #{unit}</if>
-            <if test="typeId != null"> and type_id= #{typeId}</if>
-            <if test="businessId != null"> and business_id= #{businessId}</if>
+            <if test="id != null">and goods.id = #{id}</if>
+            <if test="name != null and name != ''">and goods.name ilike concat('%', #{name}, '%')</if>
+            <if test="typeId != null">and goods.type_id = #{typeId}</if>
+            <if test="businessId != null">and goods.business_id = #{businessId}</if>
         </where>
-        order by id asc
+        order by goods.id asc
     </select>
 
     <select id="selectById" resultType="com.example.entity.Goods">
-        select goods.*, business.name as businessName, type.name as typeName
-        from goods
-        left join type on goods.type_id = type.id
-        left join business on goods.business_id = business.id
+        <include refid="Select_With_Names"/>
         where goods.id = #{id}
     </select>
 
+    <select id="selectTop10" resultType="com.example.entity.Goods">
+        <include refid="Select_With_Names"/>
+        order by goods.count desc, goods.id asc
+        limit 10
+    </select>
+
+    <select id="selectByTypeId" resultType="com.example.entity.Goods">
+        <include refid="Select_With_Names"/>
+        where goods.type_id = #{typeId}
+        order by goods.id asc
+    </select>
+
+    <select id="selectByName" resultType="com.example.entity.Goods">
+        <include refid="Select_With_Names"/>
+        where goods.name ilike concat('%', #{name}, '%')
+        order by goods.id asc
+    </select>
+
+    <select id="selectRandom" resultType="com.example.entity.Goods">
+        <include refid="Select_With_Names"/>
+        order by random()
+        limit #{limit}
+    </select>
+
     <delete id="deleteById">
-        delete from goods
-        where  id = #{id}
+        delete from goods where id = #{id}
     </delete>
 
-    <insert id="insert" parameterType="com.example.entity.Goods" useGeneratedKeys="true">
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         insert into goods
         <trim prefix="(" suffix=")" suffixOverrides=",">
-                <if test="id != null">id,</if>
-                <if test="name != null">name,</if>
-                <if test="description != null">description,</if>
-                <if test="img != null">img,</if>
-                <if test="price != null">price,</if>
-                <if test="count != null">count,</if>
-                <if test="unit != null">unit,</if>
-                <if test="typeId != null">type_id,</if>
-                <if test="businessId != null">business_id,</if>
+            <if test="name != null">name,</if>
+            <if test="description != null">description,</if>
+            <if test="img != null">img,</if>
+            <if test="price != null">price,</if>
+            <if test="count != null">count,</if>
+            <if test="stock != null">stock,</if>
+            <if test="unit != null">unit,</if>
+            <if test="typeId != null">type_id,</if>
+            <if test="businessId != null">business_id,</if>
         </trim>
         <trim prefix="values (" suffix=")" suffixOverrides=",">
-                <if test="id != null">#{id},</if>
-                <if test="name != null">#{name},</if>
-                <if test="description != null">#{description},</if>
-                <if test="img != null">#{img},</if>
-                <if test="price != null">#{price},</if>
-                <if test="count != null">#{count},</if>
-                <if test="unit != null">#{unit},</if>
-                <if test="typeId != null">#{typeId},</if>
-                <if test="businessId != null">#{businessId},</if>
+            <if test="name != null">#{name},</if>
+            <if test="description != null">#{description},</if>
+            <if test="img != null">#{img},</if>
+            <if test="price != null">#{price},</if>
+            <if test="count != null">#{count},</if>
+            <if test="stock != null">#{stock},</if>
+            <if test="unit != null">#{unit},</if>
+            <if test="typeId != null">#{typeId},</if>
+            <if test="businessId != null">#{businessId},</if>
         </trim>
     </insert>
 
-    <update id="updateById" parameterType="com.example.entity.Goods">
+    <update id="updateById">
         update goods
         <set>
-            <if test="name != null">
-                name = #{name},
-            </if>
-            <if test="description != null">
-                description = #{description},
-            </if>
-            <if test="img != null">
-                img = #{img},
-            </if>
-            <if test="price != null">
-                price = #{price},
-            </if>
-            <if test="count != null">
-                count = #{count},
-            </if>
-            <if test="unit != null">
-                unit = #{unit},
-            </if>
-            <if test="typeId != null">
-                type_id = #{typeId},
-            </if>
-            <if test="businessId != null">
-                business_id = #{businessId},
-            </if>
+            <!-- 保证所有字段都为空时 SQL 仍然合法 -->
+            id = #{id},
+            <if test="name != null">name = #{name},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="img != null">img = #{img},</if>
+            <if test="price != null">price = #{price},</if>
+            <if test="count != null">count = #{count},</if>
+            <if test="stock != null">stock = #{stock},</if>
+            <if test="unit != null">unit = #{unit},</if>
+            <if test="typeId != null">type_id = #{typeId},</if>
+            <if test="businessId != null">business_id = #{businessId},</if>
         </set>
-        where id = #{id} 
+        where id = #{id}
+    </update>
+
+    <update id="decreaseStock">
+        update goods set stock = stock - #{quantity}, count = count + #{quantity}
+        where id = #{id} and stock &gt;= #{quantity}
+    </update>
+
+    <update id="increaseStock">
+        update goods set stock = stock + #{quantity}, count = greatest(count - #{quantity}, 0)
+        where id = #{id}
     </update>
 
 </mapper>

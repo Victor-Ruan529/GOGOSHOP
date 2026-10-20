@@ -51,9 +51,11 @@ export default {
       rules: {
         username: [
           { required: true, message: '请输入账号', trigger: 'blur' },
+          { pattern: /^[A-Za-z0-9_]{3,20}$/, message: '账号只能包含字母、数字、下划线，3-20 位', trigger: 'blur' },
         ],
         password: [
           { required: true, message: '请输入密码', trigger: 'blur' },
+          { min: 6, max: 32, message: '密码长度为 6-32 位', trigger: 'blur' },
         ],
         confirmPass: [
           { validator: validatePassword, trigger: 'blur' }

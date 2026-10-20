@@ -25,8 +25,11 @@
         </el-table-column>
         <el-table-column prop="goodsName" label="商品名称" show-overflow-tooltip></el-table-column>
         <el-table-column prop="businessName" label="店铺名称" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="goodsPrice" label="商品价格" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="goodsUnit" label="计件单位" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="goodsPrice" label="单价" show-overflow-tooltip></el-table-column>
+        <el-table-column label="数量" show-overflow-tooltip>
+          <template v-slot="scope">{{ scope.row.quantity }} {{ scope.row.goodsUnit }}</template>
+        </el-table-column>
+        <el-table-column prop="totalPrice" label="总价" show-overflow-tooltip></el-table-column>
         <el-table-column prop="userName" label="用户昵称" show-overflow-tooltip></el-table-column>
         <el-table-column prop="userPhone" label="用户电话" show-overflow-tooltip></el-table-column>
         <el-table-column prop="createTime" label="下单时间" show-overflow-tooltip></el-table-column>
@@ -35,7 +38,7 @@
         <el-table-column label="操作" width="180" align="center">
           <template v-slot="scope">
             <el-button plain type="primary" size="mini" v-if="scope.row.status === '待发货'" @click="updateStatus(scope.row, '已发货')">发货</el-button>
-            <el-button plain type="danger" size="mini" @click=del(scope.row.id)>删除</el-button>
+            <el-button plain type="danger" size="mini" v-if="user.role === 'ADMIN' || scope.row.status === '已完成' || scope.row.status === '已取消'" @click=del(scope.row.id)>删除</el-button>
           </template>
         </el-table-column>
 
@@ -83,53 +86,20 @@ export default {
       form: {},
       user: JSON.parse(localStorage.getItem('xm-user') || '{}'),
       ids: [],
-      goodsData:[],
-      businessData:[],
-      ordersData:[],
       rules: {
         name: [
-          {required: true, name: '请输入商品名称', trigger: 'blur'},
+          {required: true, message: '请输入商品名称', trigger: 'blur'},
         ],
         img: [
-          {required: true, img: '请上传商品图片', trigger: 'blur'},
+          {required: true, message: '请上传商品图片', trigger: 'blur'},
         ]
       },
     }
   },
   created() {
     this.load(1)
-    this.loadGoods()
-    this.loadBusiness()
-    this.loadOrders()
   },
   methods: {
-    loadGoods() {
-      this.$request.get('/goods/selectAll').then(res =>{
-        if(res.code === '200'){
-          this.goodsData = res.data
-        } else {
-          this.$message.error(res.msg)
-        }
-      })
-    },
-    loadBusiness() {
-      this.$request.get('/business/selectAll').then(res =>{
-        if(res.code === '200'){
-          this.businessData = res.data
-        } else {
-          this.$message.error(res.msg)
-        }
-      })
-    },
-    loadOrders() {
-      this.$request.get('/orders/selectAll').then(res =>{
-        if(res.code === '200'){
-          this.ordersData = res.data
-        } else {
-          this.$message.error(res.msg)
-        }
-      })
-    },
     handleEdit(row) {   // 编辑数据
       this.form = JSON.parse(JSON.stringify(row))  // 给form对象赋值  注意要深拷贝数据
       this.fromVisible = true   // 打开弹窗
@@ -207,9 +177,14 @@ export default {
       this.form.img = response.data
     },
     updateStatus(row, status) {
-      this.form = row;
-      this.form.status = status
-      this.save()
+      this.$request.put('/orders/update', { id: row.id, status: status }).then(res => {
+        if (res.code === '200') {
+          this.$message.success('操作成功')
+          this.load(this.pageNum)
+        } else {
+          this.$message.error(res.msg)
+        }
+      })
     }
   }
 }

@@ -91,10 +91,10 @@ export default {
       user: JSON.parse(localStorage.getItem('xm-user') || '{}'),
       rules: {
         name: [
-          {required: true, name: '请输入分类名称', trigger: 'blur'},
+          {required: true, message: '请输入分类名称', trigger: 'blur'},
         ],
         img: [
-          {required: true, img: '请上传分类图标', trigger: 'blur'},
+          {required: true, message: '请上传分类图标', trigger: 'blur'},
         ]
       },
       ids: []

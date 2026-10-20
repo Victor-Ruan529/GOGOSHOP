@@ -16,7 +16,7 @@ debugger
       <el-table :data="tableData" stripe  @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" align="center"></el-table-column>
         <el-table-column prop="id" label="序号" width="80" align="center" sortable></el-table-column>
-        <el-table-column prop="name" label="商品名称" show-overflow-tooltip="true"></el-table-column>
+        <el-table-column prop="name" label="商品名称" show-overflow-tooltip></el-table-column>
         <el-table-column label="商品图片">
           <template v-slot="scope">
             <div style="display: flex; align-items: center">
@@ -30,7 +30,8 @@ debugger
         <el-table-column prop="unit" label="计件单位" show-overflow-tooltip></el-table-column>
         <el-table-column prop="typeName" label="商品分类" show-overflow-tooltip></el-table-column>
         <el-table-column prop="businessName" label="所属商家" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="count" label="商品销售量" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="count" label="销量" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="stock" label="库存" show-overflow-tooltip></el-table-column>
         <el-table-column label="操作" width="180" align="center">
           <template v-slot="scope">
             <el-button plain type="primary" @click="handleEdit(scope.row)" size="mini">编辑</el-button>
@@ -70,7 +71,10 @@ debugger
           <el-input v-model="form.name" autocomplete="off"></el-input>
         </el-form-item>
         <el-form-item prop="price" label="商品价格">
-          <el-input v-model="form.price" autocomplete="off"></el-input>
+          <el-input-number v-model="form.price" :min="0" :precision="2" :step="1" style="width: 100%"></el-input-number>
+        </el-form-item>
+        <el-form-item prop="stock" label="库存">
+          <el-input-number v-model="form.stock" :min="0" :step="1" style="width: 100%"></el-input-number>
         </el-form-item>
         <el-form-item prop="typeId" label="商品分类">
           <el-select v-model="form.typeId" placeholder="请选择商品分类" style="width: 100%">
@@ -108,11 +112,11 @@ export default {
       user: JSON.parse(localStorage.getItem('xm-user') || '{}'),
       rules: {
         name: [
-          {required: true, name: '请输入商品名称', trigger: 'blur'},
+          {required: true, message: '请输入商品名称', trigger: 'blur'},
         ],
-        img: [
-          {required: true, img: '请上传商品图片', trigger: 'blur'},
-        ]
+        price: [
+          {required: true, message: '请输入商品价格', trigger: 'blur'},
+        ],
       },
       ids: [],
       typeData:[],

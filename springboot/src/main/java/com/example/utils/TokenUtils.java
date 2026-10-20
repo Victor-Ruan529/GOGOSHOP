@@ -1,86 +1,117 @@
 package com.example.utils;
 
 import cn.hutool.core.date.DateUtil;
-import cn.hutool.core.util.ObjectUtil;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
+import com.auth0.jwt.exceptions.JWTVerificationException;
+import com.auth0.jwt.interfaces.DecodedJWT;
 import com.example.common.Constants;
+import com.example.common.config.GogoshopProperties;
+import com.example.common.enums.ResultCodeEnum;
 import com.example.common.enums.RoleEnum;
 import com.example.entity.Account;
-import com.example.service.AdminService;
-import com.example.service.BusinessService;
-import com.example.service.UserService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.example.exception.CustomException;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.Resource;
-import javax.servlet.http.HttpServletRequest;
 import java.util.Date;
 
 /**
- * Token工具类
+ * Token 工具类
+ * <p>
+ * 签名密钥 = 服务端密钥 + 用户密码哈希：
+ * 1. 只知道用户密码无法伪造 token（旧实现直接用明文密码当密钥）；
+ * 2. 用户修改密码后，之前签发的 token 自动失效。
  */
 @Component
 public class TokenUtils {
 
-    private static final Logger log = LoggerFactory.getLogger(TokenUtils.class);
+    private final GogoshopProperties properties;
 
-    private static AdminService staticAdminService;
-    private static BusinessService staticBusinessService;
-    private static UserService staticUserService;
+    public TokenUtils(GogoshopProperties properties) {
+        this.properties = properties;
+    }
 
-    @Resource
-    AdminService adminService;
-    @Resource
-    BusinessService businessService;
-    @Resource
-    UserService userService;
+    /** 生成 token，载荷为 "id-ROLE" */
+    public String createToken(Account account, RoleEnum role) {
+        return JWT.create()
+                .withAudience(account.getId() + "-" + role.name())
+                .withIssuedAt(new Date())
+                .withExpiresAt(DateUtil.offsetHour(new Date(), properties.getJwt().getExpireHours()))
+                .sign(algorithm(account.getPassword()));
+    }
 
-    @PostConstruct
-    public void setUserService() {
-        staticAdminService = adminService;
-        staticBusinessService = businessService;
-        staticUserService = userService;
+    /** 不校验签名，仅解析出 token 中的用户 id 和角色，用于查库拿到密码哈希 */
+    public TokenSubject decode(String token) {
+        try {
+            String[] parts = JWT.decode(token).getAudience().get(0).split("-");
+            RoleEnum role = RoleEnum.of(parts[1]);
+            if (role == null) {
+                throw new CustomException(ResultCodeEnum.TOKEN_CHECK_ERROR);
+            }
+            return new TokenSubject(Integer.valueOf(parts[0]), role);
+        } catch (CustomException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new CustomException(ResultCodeEnum.TOKEN_CHECK_ERROR);
+        }
+    }
+
+    /** 校验签名和过期时间 */
+    public void verify(String token, String passwordHash) {
+        try {
+            DecodedJWT ignored = JWT.require(algorithm(passwordHash)).build().verify(token);
+        } catch (JWTVerificationException e) {
+            throw new CustomException(ResultCodeEnum.TOKEN_CHECK_ERROR);
+        }
+    }
+
+    private Algorithm algorithm(String passwordHash) {
+        return Algorithm.HMAC256(properties.getJwt().getSecret() + ":" + passwordHash);
     }
 
     /**
-     * 生成token
-     */
-    public static String createToken(String data, String sign) {
-        return JWT.create().withAudience(data) // 将 userId-role 保存到 token 里面,作为载荷
-                .withExpiresAt(DateUtil.offsetHour(new Date(), 2)) // 2小时后token过期
-                .sign(Algorithm.HMAC256(sign)); // 以 password 作为 token 的密钥
-    }
-
-    /**
-     * 获取当前登录的用户信息
+     * 获取当前登录的账号（由 JwtInterceptor 放入 request），未登录时返回空 Account
      */
     public static Account getCurrentUser() {
-        try {
-            HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
-            String token = request.getHeader(Constants.TOKEN);
-            if (ObjectUtil.isNotEmpty(token)) {
-                String userRole = JWT.decode(token).getAudience().get(0);
-                String userId = userRole.split("-")[0];  // 获取用户id
-                String role = userRole.split("-")[1];    // 获取角色
-                if (RoleEnum.ADMIN.name().equals(role)) {
-                    return staticAdminService.selectById(Integer.valueOf(userId));
-                }
-                if (RoleEnum.BUSINESS.name().equals(role)) {
-                    return staticBusinessService.selectById(Integer.valueOf(userId));
-                }
-                if (RoleEnum.USER.name().equals(role)) {
-                    return staticUserService.selectById(Integer.valueOf(userId));
-                }
-            }
-        } catch (Exception e) {
-            log.error("获取当前用户信息出错", e);
+        RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
+        if (attributes == null) {
+            return new Account();
         }
-        return new Account();  // 返回空的账号对象
+        Object account = attributes.getAttribute(Constants.CURRENT_ACCOUNT, RequestAttributes.SCOPE_REQUEST);
+        return account instanceof Account ? (Account) account : new Account();
+    }
+
+    /** 获取当前登录账号，未登录直接抛异常 */
+    public static Account requireCurrentUser() {
+        Account account = getCurrentUser();
+        if (account.getId() == null) {
+            throw new CustomException(ResultCodeEnum.USER_NOT_LOGIN);
+        }
+        return account;
+    }
+
+    /** 只允许管理员或账号本人访问（例如查看个人资料） */
+    public static void checkSelfOrAdmin(Integer accountId, RoleEnum accountRole) {
+        Account current = requireCurrentUser();
+        boolean self = accountRole.name().equals(current.getRole()) && current.getId().equals(accountId);
+        if (!self && !RoleEnum.ADMIN.name().equals(current.getRole())) {
+            throw new CustomException(ResultCodeEnum.NO_PERMISSION);
+        }
+    }
+
+    public static RoleEnum currentRole() {
+        return RoleEnum.of(getCurrentUser().getRole());
+    }
+
+    public static class TokenSubject {
+        public final Integer id;
+        public final RoleEnum role;
+
+        public TokenSubject(Integer id, RoleEnum role) {
+            this.id = id;
+            this.role = role;
+        }
     }
 }
-

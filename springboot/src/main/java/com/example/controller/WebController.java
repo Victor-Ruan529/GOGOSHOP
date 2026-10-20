@@ -1,97 +1,68 @@
 package com.example.controller;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.example.common.Result;
+import com.example.common.annotation.PublicApi;
 import com.example.common.enums.ResultCodeEnum;
 import com.example.common.enums.RoleEnum;
 import com.example.entity.Account;
-import com.example.service.AdminService;
-import com.example.service.BusinessService;
-import com.example.service.UserService;
+import com.example.service.AccountRegistry;
+import com.example.utils.TokenUtils;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 
 /**
- * 基础前端接口
+ * 登录、注册、修改密码
  */
 @RestController
 public class WebController {
 
-        @Resource
-        private AdminService adminService;
-        @Resource
-        private BusinessService businessService;
     @Resource
-    private UserService userService;
+    private AccountRegistry accountRegistry;
 
+    @PublicApi
     @GetMapping("/")
     public Result hello() {
         return Result.success("访问成功");
     }
 
-    /**
-     * 登录
-     */
+    @PublicApi
     @PostMapping("/login")
     public Result login(@RequestBody Account account) {
-        if (ObjectUtil.isEmpty(account.getUsername()) || ObjectUtil.isEmpty(account.getPassword())
-                || ObjectUtil.isEmpty(account.getRole())) {
+        if (StrUtil.hasBlank(account.getUsername(), account.getPassword(), account.getRole())) {
             return Result.error(ResultCodeEnum.PARAM_LOST_ERROR);
         }
-        if (RoleEnum.ADMIN.name().equals(account.getRole())) {
-            account = adminService.login(account);
-        }
-        if (RoleEnum.BUSINESS.name().equals(account.getRole())){
-            account = businessService.login(account);
-        }
-        if (RoleEnum.USER.name().equals(account.getRole())){
-            account = userService.login(account);
-        }
-        return Result.success(account);
+        return Result.success(accountRegistry.get(account.getRole()).login(account));
     }
 
     /**
-     * 注册
+     * 注册：只允许注册商家和普通用户，管理员只能由已有管理员在后台创建
      */
+    @PublicApi
     @PostMapping("/register")
     public Result register(@RequestBody Account account) {
-        if (StrUtil.isBlank(account.getUsername()) || StrUtil.isBlank(account.getPassword())
-                || ObjectUtil.isEmpty(account.getRole())) {
+        if (StrUtil.hasBlank(account.getUsername(), account.getPassword(), account.getRole())) {
             return Result.error(ResultCodeEnum.PARAM_LOST_ERROR);
         }
-        if (RoleEnum.ADMIN.name().equals(account.getRole())) {
-            adminService.register(account);
+        RoleEnum role = RoleEnum.of(account.getRole());
+        if (role != RoleEnum.USER && role != RoleEnum.BUSINESS) {
+            return Result.error(ResultCodeEnum.NO_PERMISSION.code, "只能注册商家或用户账号");
         }
-        if (RoleEnum.BUSINESS.name().equals(account.getRole())) {
-            businessService.register(account);
-        }
-        if (RoleEnum.USER.name().equals(account.getRole())) {
-            userService.register(account);
-        }
+        accountRegistry.get(account.getRole()).register(account);
         return Result.success();
     }
 
     /**
-     * 修改密码
+     * 修改密码：只能修改当前登录账号自己的密码（原来按请求体中的用户名修改）
      */
     @PutMapping("/updatePassword")
     public Result updatePassword(@RequestBody Account account) {
-        if (StrUtil.isBlank(account.getUsername()) || StrUtil.isBlank(account.getPassword())
-                || ObjectUtil.isEmpty(account.getNewPassword())) {
+        if (StrUtil.hasBlank(account.getPassword(), account.getNewPassword())) {
             return Result.error(ResultCodeEnum.PARAM_LOST_ERROR);
         }
-        if (RoleEnum.ADMIN.name().equals(account.getRole())) {
-            adminService.updatePassword(account);
-        }
-        if (RoleEnum.BUSINESS.name().equals(account.getRole())) {
-            businessService.updatePassword(account);
-        }
-        if (RoleEnum.USER.name().equals(account.getRole())) {
-            userService.updatePassword(account);
-        }
+        Account current = TokenUtils.requireCurrentUser();
+        accountRegistry.get(current.getRole()).updatePassword(current, account.getPassword(), account.getNewPassword());
         return Result.success();
     }
-
 }

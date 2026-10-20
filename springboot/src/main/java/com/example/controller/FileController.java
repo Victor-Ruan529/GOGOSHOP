@@ -1,95 +1,59 @@
 package com.example.controller;
 
-import cn.hutool.core.io.FileUtil;
-import cn.hutool.core.thread.ThreadUtil;
-import cn.hutool.core.util.StrUtil;
 import com.example.common.Result;
-import org.springframework.beans.factory.annotation.Value;
+import com.example.common.annotation.PublicApi;
+import com.example.common.annotation.RequireRole;
+import com.example.common.enums.RoleEnum;
+import com.example.service.FileStorageService;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.MediaTypeFactory;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.servlet.http.HttpServletResponse;
-import java.io.OutputStream;
-import java.net.URLEncoder;
-import java.util.List;
+import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
 
 /**
- * 文件接口
+ * 文件接口：上传需要登录，读取公开，删除仅管理员
  */
 @RestController
 @RequestMapping("/files")
 public class FileController {
 
-    // 文件上传存储路径
-    private static final String filePath = System.getProperty("user.dir") + "/files/";
+    @javax.annotation.Resource
+    private FileStorageService fileStorageService;
 
-    @Value("${server.port:9090}")
-    private String port;
-
-    @Value("${ip:localhost}")
-    private String ip;
-
-    /**
-     * 文件上传
-     */
     @PostMapping("/upload")
     public Result upload(MultipartFile file) {
-        String flag;
-        synchronized (FileController.class) {
-            flag = System.currentTimeMillis() + "";
-            ThreadUtil.sleep(1L);
-        }
-        String fileName = file.getOriginalFilename();
-        try {
-            if (!FileUtil.isDirectory(filePath)) {
-                FileUtil.mkdir(filePath);
-            }
-            // 文件存储形式：时间戳-文件名
-            FileUtil.writeBytes(file.getBytes(), filePath + flag + "-" + fileName);  // ***/manager/files/1697438073596-avatar.png
-            System.out.println(fileName + "--上传成功");
-
-        } catch (Exception e) {
-            System.err.println(fileName + "--文件上传失败");
-        }
-        String http = "http://" + ip + ":" + port + "/files/";
-        return Result.success(http + flag + "-" + fileName);  //  http://localhost:9090/files/1697438073596-avatar.png
-    }
-
-
-    /**
-     * 获取文件
-     *
-     * @param flag
-     * @param response
-     */
-    @GetMapping("/{flag}")   //  1697438073596-avatar.png
-    public void avatarPath(@PathVariable String flag, HttpServletResponse response) {
-        OutputStream os;
-        try {
-            if (StrUtil.isNotEmpty(flag)) {
-                response.addHeader("Content-Disposition", "attachment;filename=" + URLEncoder.encode(flag, "UTF-8"));
-                response.setContentType("application/octet-stream");
-                byte[] bytes = FileUtil.readBytes(filePath + flag);
-                os = response.getOutputStream();
-                os.write(bytes);
-                os.flush();
-                os.close();
-            }
-        } catch (Exception e) {
-            System.out.println("文件下载失败");
-        }
+        return Result.success(fileStorageService.store(file));
     }
 
     /**
-     * 删除文件
-     *
-     * @param flag
+     * 读取图片：直接按图片类型返回（原来是 attachment 下载），并禁止浏览器猜测类型
      */
-    @DeleteMapping("/{flag}")
-    public void delFile(@PathVariable String flag) {
-        FileUtil.del(filePath + flag);
-        System.out.println("删除文件" + flag + "成功");
+    @PublicApi
+    @GetMapping("/{fileName:.+}")
+    public ResponseEntity<Resource> get(@PathVariable String fileName) {
+        Path path = fileStorageService.resolve(fileName);
+        if (path == null) {
+            return ResponseEntity.notFound().build();
+        }
+        MediaType type = MediaTypeFactory.getMediaType(fileName).orElse(MediaType.APPLICATION_OCTET_STREAM);
+        return ResponseEntity.ok()
+                .contentType(type)
+                .header("X-Content-Type-Options", "nosniff")
+                .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS))
+                .body(new FileSystemResource(path));
     }
 
-
+    @RequireRole(RoleEnum.ADMIN)
+    @DeleteMapping("/{fileName:.+}")
+    public Result delete(@PathVariable String fileName) {
+        fileStorageService.delete(fileName);
+        return Result.success();
+    }
 }

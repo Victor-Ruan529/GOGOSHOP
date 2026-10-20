@@ -1,31 +1,60 @@
 server:
-  port: 9090
+  port: ${SERVER_PORT:9090}
 
-# 数据库配置
 spring:
   datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    username: root   #你本地的数据库用户名
-    password: 123456 #你本地的数据库密码
-    url: jdbc:mysql://localhost:3306/myshop?useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&useSSL=false&serverTimezone=GMT%2b8&allowPublicKeyRetrieval=true
+    driver-class-name: org.postgresql.Driver
+    # 敏感配置都可以用环境变量覆盖，生产环境不要使用默认值
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/gogoshop}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:123456}
   servlet:
     multipart:
-      max-file-size: 100MB
-      max-request-size: 100MB
+      max-file-size: 10MB
+      max-request-size: 10MB
+  jackson:
+    time-zone: GMT+8
+    default-property-inclusion: non_null
 
-# 配置mybatis实体和xml映射
 mybatis:
   mapper-locations: classpath:mapper/*.xml
   type-aliases-package: com.example.entity
   configuration:
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
     map-underscore-to-camel-case: true
 
-# 分页
 pagehelper:
-  helper-dialect: mysql
+  helper-dialect: postgresql
   reasonable: true
   support-methods-arguments: true
   params: count=countSql
 
-ip: localhost
+gogoshop:
+  jwt:
+    # 生产环境务必通过 JWT_SECRET 环境变量设置一个足够长的随机字符串
+    secret: ${JWT_SECRET:gogoshop-dev-secret-please-change-me-0123456789}
+    expire-hours: 2
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost:8080,http://127.0.0.1:8080}
+  file:
+    # 上传目录；为空时自动查找项目根目录下的 files 文件夹
+    upload-dir: ${FILE_UPLOAD_DIR:}
+    # 返回给前端的文件访问前缀
+    base-url: ${FILE_BASE_URL:http://localhost:9090}
+    allowed-extensions: jpg,jpeg,png,gif,webp,bmp
+  login:
+    max-failures: 5
+    lock-minutes: 10
+
+logging:
+  level:
+    com.example.mapper: info
+
+---
+# 开发环境：打印 SQL。启动参数 --spring.profiles.active=dev
+spring:
+  config:
+    activate:
+      on-profile: dev
+logging:
+  level:
+    com.example.mapper: debug

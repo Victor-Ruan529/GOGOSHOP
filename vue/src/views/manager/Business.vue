@@ -28,7 +28,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="role" label="角色"></el-table-column>
-        <el-table-column prop="description" label="商家描述" show-overflow-tooltip="true"></el-table-column>
+        <el-table-column prop="description" label="商家描述" show-overflow-tooltip></el-table-column>
         <el-table-column prop="status" label="审核状态"></el-table-column>
         <el-table-column label="操作" align="center" width="180">
           <template v-slot="scope">

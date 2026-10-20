@@ -8,15 +8,18 @@
           </el-col>
           <el-col :span="12">
             <div style="font-size: 20px; font-weight: 900;overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2;-webkit-box-orient: vertical;" >{{goodsData.name}}</div>
-            <div style="font-size: 14px; color: rgb(102,102,102); margin-top: 5px">销量：{{goodsData.count}}</div>
+            <div style="font-size: 14px; color: rgb(102,102,102); margin-top: 5px">销量：{{goodsData.count}}　库存：{{goodsData.stock}}</div>
             <div style="font-size: 15px; margin-top: 15px; color: red">疯抢价：<span style="font-size: 20px">{{goodsData.price}} / {{goodsData.unit}}</span> </div>
             <div style="margin-top: 30px;">
               <img src="@/assets/imgs/right.png" alt="" style="border-radius: 15px; width: 70%;height: 130px">
             </div>
             <div style="color: rgb(102,102,102); font-size: 14px;margin-top: 20px">商家：{{goodsData.businessName}}</div>
             <div style="color: rgb(102,102,102); font-size: 14px;margin-top: 20px"><a href="#" @click="navTo('/front/type?id=' + goodsData.typeId)">分类：{{goodsData.typeName}}</a></div>
-            <div  style="margin-top: 30px">
-              <el-button type="warning" @click="pay">立刻购买</el-button>
+            <div style="margin-top: 20px; font-size: 14px; color: rgb(102,102,102)">
+              数量：<el-input-number v-model="quantity" :min="1" :max="Math.max(1, Math.min(99, goodsData.stock || 1))" size="small"></el-input-number>
+            </div>
+            <div style="margin-top: 20px">
+              <el-button type="warning" :disabled="!goodsData.stock" @click="pay">{{ goodsData.stock ? '立刻购买' : '已售罄' }}</el-button>
               <el-button type="warning" @click="collect">收藏</el-button>
             </div>
           </el-col>
@@ -27,7 +30,7 @@
         <el-divider></el-divider>
       </div>
       <div>
-        <span style="height: 40px; font-size: 20px; text-align: center; width: 130px; margin-left: 70px; color: rgb(102,102,102)">{{goodsData.description}}</span>
+        <div style="font-size: 16px; margin: 0 70px; color: rgb(102,102,102); white-space: pre-wrap">{{goodsData.description}}</div>
       </div>
       </div>
     </div>
@@ -42,6 +45,7 @@ export default {
       user:JSON.parse(localStorage.getItem('xm-user') || '{}'),
       goodsId: goodsId,
       goodsData:{},
+      quantity: 1,
     }
   },
   mounted(){
@@ -52,15 +56,15 @@ export default {
       location.href = url
     },
     pay(){
+      // 价格、用户、商家、状态都由后端决定，前端只传商品和数量
       let data = {
-        userId: this.user.id,
-        businessId: this.goodsData.businessId,
         goodsId: this.goodsId,
-        status: "待发货"
+        quantity: this.quantity
       }
       this.$request.post('/orders/add', data).then(res => {
         if(res.code === '200'){
-          this.$message.success('购买成功')
+          this.$message.success('购买成功，订单金额 ￥' + res.data.totalPrice)
+          this.loadGoods()
         } else {
           this.$message.error(res.msg)
         }
@@ -68,8 +72,6 @@ export default {
     },
     collect(){
       let data = {
-        userId: this.user.id,
-        businessId: this.goodsData.businessId,
         goodsId: this.goodsId
       }
       this.$request.post('/collect/add', data).then(res => {

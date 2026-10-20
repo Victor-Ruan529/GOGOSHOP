@@ -15,6 +15,7 @@
           <el-upload
               class="avatar-uploader"
               :action="$baseUrl + '/files/upload'"
+              :headers="{ token: user.token }"
               :show-file-list="false"
               :on-success="handleAvatarSuccess"
           >
@@ -81,6 +82,7 @@ export default {
         ],
         newPassword: [
           { required: true, message: '请输入新密码', trigger: 'blur' },
+          { min: 6, max: 32, message: '密码长度为 6-32 位', trigger: 'blur' },
         ],
         confirmPassword: [
           { validator: validatePassword, required: true, trigger: 'blur' },

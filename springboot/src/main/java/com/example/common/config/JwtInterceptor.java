@@ -1,21 +1,18 @@
 package com.example.common.config;
 
-import cn.hutool.core.util.ObjectUtil;
-import com.auth0.jwt.JWT;
-import com.auth0.jwt.JWTVerifier;
-import com.auth0.jwt.algorithms.Algorithm;
-import com.auth0.jwt.exceptions.JWTVerificationException;
+import cn.hutool.core.util.ArrayUtil;
+import cn.hutool.core.util.StrUtil;
 import com.example.common.Constants;
+import com.example.common.annotation.PublicApi;
+import com.example.common.annotation.RequireRole;
 import com.example.common.enums.ResultCodeEnum;
 import com.example.common.enums.RoleEnum;
 import com.example.entity.Account;
 import com.example.exception.CustomException;
-import com.example.service.AdminService;
-import com.example.service.BusinessService;
-import com.example.service.UserService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.example.service.AccountRegistry;
+import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.stereotype.Component;
+import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import javax.annotation.Resource;
@@ -23,61 +20,42 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 /**
- * jwt拦截器
+ * jwt 拦截器：认证（token 是否有效）+ 授权（角色是否允许访问）
  */
 @Component
 public class JwtInterceptor implements HandlerInterceptor {
 
-    private static final Logger log = LoggerFactory.getLogger(JwtInterceptor.class);
-
     @Resource
-    private AdminService adminService;
-    @Resource
-    private BusinessService businessService;
-    @Resource
-    private UserService userService;
+    private AccountRegistry accountRegistry;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        // 1. 从http请求的header中获取token
-        String token = request.getHeader(Constants.TOKEN);
-        if (ObjectUtil.isEmpty(token)) {
-            // 如果没拿到，从参数里再拿一次
-            token = request.getParameter(Constants.TOKEN);
+        if (!(handler instanceof HandlerMethod)) {
+            return true;
         }
-        // 2. 开始执行认证
-        if (ObjectUtil.isEmpty(token)) {
+        HandlerMethod method = (HandlerMethod) handler;
+        if (findAnnotation(method, PublicApi.class) != null) {
+            return true;
+        }
+
+        // 只从请求头取 token，不再支持 URL 参数（会被记录到日志和浏览器历史里）
+        String token = request.getHeader(Constants.TOKEN);
+        if (StrUtil.isBlank(token)) {
             throw new CustomException(ResultCodeEnum.TOKEN_INVALID_ERROR);
         }
-        Account account = null;
-        try {
-            // 解析token获取存储的数据
-            String userRole = JWT.decode(token).getAudience().get(0);
-            String userId = userRole.split("-")[0];
-            String role = userRole.split("-")[1];
-            // 根据userId查询数据库
-            if (RoleEnum.ADMIN.name().equals(role)) {
-                account = adminService.selectById(Integer.valueOf(userId));
-            }
-            if (RoleEnum.BUSINESS.name().equals(role)) {
-                account = businessService.selectById(Integer.valueOf(userId));
-            }
-            if (RoleEnum.USER.name().equals(role)) {
-                account = userService.selectById(Integer.valueOf(userId));
-            }
-        } catch (Exception e) {
-            throw new CustomException(ResultCodeEnum.TOKEN_CHECK_ERROR);
-        }
-        if (ObjectUtil.isNull(account)) {
-            throw new CustomException(ResultCodeEnum.USER_NOT_EXIST_ERROR);
-        }
-        try {
-            // 用户密码加签验证 token
-            JWTVerifier jwtVerifier = JWT.require(Algorithm.HMAC256(account.getPassword())).build();
-            jwtVerifier.verify(token); // 验证token
-        } catch (JWTVerificationException e) {
-            throw new CustomException(ResultCodeEnum.TOKEN_CHECK_ERROR);
+        Account account = accountRegistry.authenticate(token);
+        request.setAttribute(Constants.CURRENT_ACCOUNT, account);
+
+        RequireRole requireRole = findAnnotation(method, RequireRole.class);
+        if (requireRole != null && !ArrayUtil.contains(requireRole.value(), RoleEnum.of(account.getRole()))) {
+            throw new CustomException(ResultCodeEnum.NO_PERMISSION);
         }
         return true;
+    }
+
+    /** 方法上的注解优先，其次是类上的 */
+    private <A extends java.lang.annotation.Annotation> A findAnnotation(HandlerMethod method, Class<A> type) {
+        A annotation = AnnotatedElementUtils.findMergedAnnotation(method.getMethod(), type);
+        return annotation != null ? annotation : AnnotatedElementUtils.findMergedAnnotation(method.getBeanType(), type);
     }
 }

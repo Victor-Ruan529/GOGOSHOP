@@ -1,8 +1,9 @@
 package com.example.controller;
 
 import com.example.common.Result;
+import com.example.common.annotation.RequireRole;
+import com.example.common.enums.RoleEnum;
 import com.example.entity.Type;
-
 import com.example.service.TypeService;
 import com.github.pagehelper.PageInfo;
 import org.springframework.web.bind.annotation.*;
@@ -11,8 +12,8 @@ import javax.annotation.Resource;
 import java.util.List;
 
 /**
- * 商品分类操作接口
- **/
+ * 商品分类接口
+ */
 @RestController
 @RequestMapping("/type")
 public class TypeController {
@@ -20,69 +21,49 @@ public class TypeController {
     @Resource
     private TypeService typeService;
 
-    /**
-     * 新增
-     */
+    @RequireRole(RoleEnum.ADMIN)
     @PostMapping("/add")
     public Result add(@RequestBody Type type) {
         typeService.add(type);
         return Result.success();
     }
 
-    /**
-     * 删除
-     */
+    @RequireRole(RoleEnum.ADMIN)
     @DeleteMapping("/delete/{id}")
     public Result deleteById(@PathVariable Integer id) {
         typeService.deleteById(id);
         return Result.success();
     }
 
-    /**
-     * 批量删除
-     */
+    @RequireRole(RoleEnum.ADMIN)
     @DeleteMapping("/delete/batch")
     public Result deleteBatch(@RequestBody List<Integer> ids) {
         typeService.deleteBatch(ids);
         return Result.success();
     }
 
-    /**
-     * 修改
-     */
+    @RequireRole(RoleEnum.ADMIN)
     @PutMapping("/update")
     public Result updateById(@RequestBody Type type) {
         typeService.updateById(type);
         return Result.success();
     }
 
-    /**
-     * 根据ID查询
-     */
     @GetMapping("/selectById")
     public Result selectById(@RequestParam Integer id) {
-        Type type = typeService.selectById(id);
-        return Result.success(type);
+        return Result.success(typeService.selectById(id));
     }
 
-    /**
-     * 查询所有
-     */
     @GetMapping("/selectAll")
-    public Result selectAll(Type type ) {
-        List<Type> list = typeService.selectAll(type);
-        return Result.success(list);
+    public Result selectAll(Type type) {
+        return Result.success(typeService.selectAll(type));
     }
 
-    /**
-     * 分页查询
-     */
     @GetMapping("/selectPage")
     public Result selectPage(Type type,
                              @RequestParam(defaultValue = "1") Integer pageNum,
                              @RequestParam(defaultValue = "10") Integer pageSize) {
-        PageInfo<Type> page = typeService.selectPage(type, pageNum, pageSize);
+        PageInfo<Type> page = typeService.selectPage(type, pageNum, Math.min(pageSize, 100));
         return Result.success(page);
     }
-
 }

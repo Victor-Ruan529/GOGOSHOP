@@ -3,7 +3,7 @@
     <div style="width: 70%; background-color: white; margin: 30px auto; border-radius: 20px">
       <div style="padding-bottom: 10px">
         <div style="font-size: 18px; color: #000000FF; line-height: 80px; border-bottom: #cccccc 1px solid; display: flex">
-          <div style="margin-left: 20px">全部订单（{{ ordersData.length }}件）</div>
+          <div style="margin-left: 20px">全部订单（{{ total }}件）</div>
           <div style="margin: auto"></div>
           <div style="text-align: right; margin-right: 100px">
             <el-button type="primary" @click="navTo('/front/home')">返回主页</el-button>
@@ -18,19 +18,21 @@
                             :src="scope.row.goodsImg" :preview-src-list="[scope.row.goodsImg]"></el-image>
                 </template>
               </el-table-column>
-              <el-table-column prop="orderId" label="订单编号" width="100px"></el-table-column>
+              <el-table-column prop="orderId" label="订单编号" width="180px"></el-table-column>
               <el-table-column prop="goodsName" label="商品名称" width="100px"></el-table-column>
               <el-table-column prop="businessName" label="店铺名称"></el-table-column>
-              <el-table-column prop="goodsPrice" label="商品价格"></el-table-column>
-              <el-table-column prop="goodsUnit" label="计数单位"></el-table-column>
-              <el-table-column prop="userName" label="用户昵称"></el-table-column>
-              <el-table-column prop="userPhone" label="用户电话"></el-table-column>
+              <el-table-column prop="goodsPrice" label="单价"></el-table-column>
+              <el-table-column label="数量">
+                <template v-slot="scope">{{ scope.row.quantity }} {{ scope.row.goodsUnit }}</template>
+              </el-table-column>
+              <el-table-column prop="totalPrice" label="总价"></el-table-column>
               <el-table-column prop="createTime" label="下单时间"></el-table-column>
               <el-table-column prop="status" label="订单状态" align="center"></el-table-column>
               <el-table-column label="操作" align="center" width="180">
                 <template v-slot="scope">
                   <el-button size="mini" type="primary" v-if="scope.row.status === '已发货'" plain @click="updateStatus(scope.row, '已完成')">确认收货</el-button>
-                  <el-button size="mini" type="danger" plain @click="del(scope.row.id)">删除</el-button>
+                  <el-button size="mini" type="warning" v-if="scope.row.status === '待发货'" plain @click="updateStatus(scope.row, '已取消')">取消订单</el-button>
+                  <el-button size="mini" type="danger" v-if="scope.row.status === '已完成' || scope.row.status === '已取消'" plain @click="del(scope.row.id)">删除</el-button>
                 </template>
               </el-table-column>
             </el-table>
@@ -106,11 +108,10 @@ export default {
       this.loadOrders(pageNum)
     },
     updateStatus(row, status) {
-      this.form = row
-      this.form.status = status
-      this.$request.put('/orders/update', this.form).then(res => {
+      this.$request.put('/orders/update', { id: row.id, status: status }).then(res => {
         if (res.code === '200') {
-          this.$message.success("订单完成")
+          this.$message.success(status === '已取消' ? '订单已取消' : '订单完成')
+          this.loadOrders()
         } else {
           this.$message.error(res.msg)
         }

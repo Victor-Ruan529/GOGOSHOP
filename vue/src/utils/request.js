@@ -13,7 +13,9 @@ const request = axios.create({
 request.interceptors.request.use(config => {
     config.headers['Content-Type'] = 'application/json;charset=utf-8';        // 设置请求头格式
     let user = JSON.parse(localStorage.getItem("xm-user") || '{}')  // 获取缓存的用户信息
-    config.headers['token'] = user.token  // 设置请求头
+    if (user.token) {
+        config.headers['token'] = user.token  // 设置请求头
+    }
 
     return config
 }, error => {
@@ -32,7 +34,11 @@ request.interceptors.response.use(
             res = res ? JSON.parse(res) : res
         }
         if (res.code === '401') {
-            router.push('/login')
+            // token 失效：清掉本地登录信息再跳转登录页
+            localStorage.removeItem('xm-user')
+            if (router.currentRoute.path !== '/login') {
+                router.push('/login')
+            }
         }
         return res;
     },
